@@ -1,3 +1,7 @@
 <Solution>
+  <Folder Name="/DL/">
+    <Project Path="Recruitement.Model/Recruitement.Model.csproj" Id="03e599e3-2017-4696-b7da-0b7b6b6d1f6f" />
+    <Project Path="Recruitement.Repository/Recruitement.Repository.csproj" Id="e760cc0f-50fd-4303-8460-64711590973e" />
+  </Folder>
   <Project Path="Recruitement.Ui.Blazor/Recruitement.Ui.Blazor.csproj" />
 </Solution>
