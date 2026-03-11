@@ -1,5 +1,11 @@
 <Solution>
-  <Folder Name="/Business/" />
+  <Folder Name="/Core/" />
+  <Folder Name="/Core/Interfaces/">
+    <Project Path="Recruitment.Interfaces/Recruitment.Interfaces.csproj" Id="2c1044fe-9061-4f4b-97eb-f5c393fba410" />
+  </Folder>
+  <Folder Name="/Core/Services/">
+    <Project Path="Recruitment.Services/Recruitment.Services.csproj" Id="4b3756a6-3b25-42b0-9951-43f8f8bc4225" />
+  </Folder>
   <Folder Name="/Data/">
     <Project Path="Recruitment.Data/Recruitment.Data.csproj" Id="21542013-0d62-4c3d-9520-b61b89ece8c6" />
   </Folder>
