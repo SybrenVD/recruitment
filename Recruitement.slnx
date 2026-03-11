@@ -12,12 +12,8 @@
   <Folder Name="/Data/">
     <Project Path="Recruitment.Data/Recruitment.Data.csproj" Id="21542013-0d62-4c3d-9520-b61b89ece8c6" />
   </Folder>
-  <Folder Name="/Dto/" />
-  <Folder Name="/Dto/Requests/">
-    <Project Path="Recuitment.Requests/Recuitment.Requests.csproj" Id="dea7ae87-87ef-4731-89ec-cac082d415f9" />
-  </Folder>
-  <Folder Name="/Dto/Responses/">
-    <Project Path="Recruitment.Responses/Recruitment.Responses.csproj" Id="b6db8575-a08a-45d5-b701-c2f8264ccb31" />
+  <Folder Name="/Dto/">
+    <Project Path="Recruitment.Dto/Recruitment.Dto.csproj" Id="8d3063d6-1f5a-45ed-93dc-1ea55915baa1" />
   </Folder>
   <Folder Name="/Entities/">
     <Project Path="Recruitment.Entities/Recruitment.Entities.csproj" Id="22ddcb26-abd6-457c-bf5c-a021a9b3d1ab" />
