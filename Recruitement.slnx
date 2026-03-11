@@ -1,7 +1,19 @@
 <Solution>
-  <Folder Name="/Business/" />
+  <Folder Name="/Api/">
+    <Project Path="Recruitment.Api/Recruitment.Api.csproj" Id="2b76fa9f-2ae9-4af1-aeb6-8105884e33ba" />
+  </Folder>
+  <Folder Name="/Core/" />
+  <Folder Name="/Core/Interfaces/">
+    <Project Path="Recruitment.Interfaces/Recruitment.Interfaces.csproj" Id="2c1044fe-9061-4f4b-97eb-f5c393fba410" />
+  </Folder>
+  <Folder Name="/Core/Services/">
+    <Project Path="Recruitment.Services/Recruitment.Services.csproj" Id="4b3756a6-3b25-42b0-9951-43f8f8bc4225" />
+  </Folder>
   <Folder Name="/Data/">
     <Project Path="Recruitment.Data/Recruitment.Data.csproj" Id="21542013-0d62-4c3d-9520-b61b89ece8c6" />
+  </Folder>
+  <Folder Name="/Dto/">
+    <Project Path="Recruitment.Dto/Recruitment.Dto.csproj" Id="8d3063d6-1f5a-45ed-93dc-1ea55915baa1" />
   </Folder>
   <Folder Name="/Entities/">
     <Project Path="Recruitment.Entities/Recruitment.Entities.csproj" Id="22ddcb26-abd6-457c-bf5c-a021a9b3d1ab" />
