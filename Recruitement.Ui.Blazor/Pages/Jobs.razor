@@ -1,0 +1,64 @@
+@page "/jobs"
+@inject IJobClient JobClient
+
+<PageTitle>Jobs</PageTitle>
+
+<h1>Jobs</h1>
+
+@if (jobs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!jobs.Any())
+{
+    <p>No jobs found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Location</th>
+                <th>Experience Level</th>
+                <th>Education Level</th>
+                <th>Posted</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var job in jobs)
+            {
+                <tr>
+                    <td>@job.Title</td>
+                    <td>@(job.Location ?? "-")</td>
+                    <td>@(job.ExperienceLevel ?? "-")</td>
+                    <td>@(job.EducationLevel ?? "-")</td>
+                    <td>@job.CreatedAt.ToShortDateString()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@code {
+    private IEnumerable<JobResponse>? jobs;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            jobs = await JobClient.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load jobs: {ex.Message}";
+            jobs = [];
+        }
+    }
+}

@@ -1,0 +1,64 @@
+@page "/candidates"
+@inject ICandidateClient CandidateClient
+
+<PageTitle>Candidates</PageTitle>
+
+<h1>Candidates</h1>
+
+@if (candidates == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!candidates.Any())
+{
+    <p>No candidates found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Location</th>
+                <th>Registered</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var candidate in candidates)
+            {
+                <tr>
+                    <td>@candidate.FirstName @candidate.LastName</td>
+                    <td>@candidate.Email</td>
+                    <td>@(candidate.Phone ?? "-")</td>
+                    <td>@(candidate.Location ?? "-")</td>
+                    <td>@candidate.CreatedAt.ToShortDateString()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@code {
+    private IEnumerable<CandidateResponse>? candidates;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            candidates = await CandidateClient.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load candidates: {ex.Message}";
+            candidates = [];
+        }
+    }
+}

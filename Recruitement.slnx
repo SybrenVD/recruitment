@@ -14,11 +14,14 @@
   </Folder>
   <Folder Name="/Dto/">
     <Project Path="Recruitment.Dto/Recruitment.Dto.csproj" Id="8d3063d6-1f5a-45ed-93dc-1ea55915baa1" />
+    <Project Path="Recuitment.Requests/Recuitment.Requests.csproj" />
+    <Project Path="Recruitment.Responses/Recruitment.Responses.csproj" />
   </Folder>
   <Folder Name="/Entities/">
     <Project Path="Recruitment.Entities/Recruitment.Entities.csproj" Id="22ddcb26-abd6-457c-bf5c-a021a9b3d1ab" />
   </Folder>
   <Folder Name="/Frontend/">
     <Project Path="Recruitement.Ui.Blazor/Recruitement.Ui.Blazor.csproj" />
+    <Project Path="Recruitment.Sdk/Recruitment.Sdk.csproj" />
   </Folder>
 </Solution>
