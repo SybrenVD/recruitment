@@ -1,0 +1,120 @@
+using Recruitment.Interfaces;
+
+namespace Recruitment.Services;
+
+public class MatchingService : IMatchingService
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public MatchingService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Entities.JobMatch> CalculateMatchAsync(int candidateId, int jobId)
+    {
+        var candidateSkills = await _unitOfWork.CandidateSkills.FindAsync(cs => cs.CandidateId == candidateId);
+        var jobSkills = await _unitOfWork.JobSkills.FindAsync(js => js.JobId == jobId);
+
+        int totalScore = 0;
+        int maxScore = jobSkills.Count() * 5 * 100;
+        var skillGaps = new List<string>();
+
+        foreach (var jobSkill in jobSkills)
+        {
+            var candidateSkill = candidateSkills.FirstOrDefault(cs => cs.SkillId == jobSkill.SkillId);
+            if (candidateSkill != null)
+            {
+                var diff = candidateSkill.Level - jobSkill.RequiredLevel;
+                var skillScore = Math.Max(0, (5 - Math.Abs(diff)) * 100 / 5);
+                totalScore += skillScore * jobSkill.Weight;
+            }
+            else
+            {
+                skillGaps.Add($"Missing required skill level {jobSkill.RequiredLevel}");
+            }
+        }
+
+        var matchScore = maxScore > 0 ? (totalScore * 100) / maxScore : 0;
+
+        var existingMatch = (await _unitOfWork.JobMatches.FindAsync(
+            jm => jm.CandidateId == candidateId && jm.JobId == jobId)).FirstOrDefault();
+
+        if (existingMatch != null)
+        {
+            existingMatch.MatchScore = matchScore;
+            existingMatch.SkillGap = string.Join(", ", skillGaps);
+            await _unitOfWork.JobMatches.UpdateAsync(existingMatch);
+            return existingMatch;
+        }
+
+        var newMatch = new Entities.JobMatch
+        {
+            CandidateId = candidateId,
+            JobId = jobId,
+            MatchScore = matchScore,
+            SkillGap = string.Join(", ", skillGaps),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        return await _unitOfWork.JobMatches.AddAsync(newMatch);
+    }
+
+    public async Task<IEnumerable<Entities.JobMatch>> GetSuggestionsForCandidateAsync(int candidateId, int limit = 10)
+    {
+        var allJobs = await _unitOfWork.Jobs.GetAllAsync();
+        var matches = new List<Entities.JobMatch>();
+
+        foreach (var job in allJobs)
+        {
+            var match = await CalculateMatchAsync(candidateId, job.Id);
+            matches.Add(match);
+        }
+
+        return matches.OrderByDescending(m => m.MatchScore).Take(limit);
+    }
+
+    public async Task<IEnumerable<Entities.JobMatch>> GetSuggestionsForJobAsync(int jobId, int limit = 10)
+    {
+        var allCandidates = await _unitOfWork.Candidates.GetAllAsync();
+        var matches = new List<Entities.JobMatch>();
+
+        foreach (var candidate in allCandidates)
+        {
+            var match = await CalculateMatchAsync(candidate.Id, jobId);
+            matches.Add(match);
+        }
+
+        return matches.OrderByDescending(m => m.MatchScore).Take(limit);
+    }
+
+    public async Task ProcessSwipeAsync(int candidateId, int jobId, bool isLike)
+    {
+        var existingMatch = (await _unitOfWork.JobMatches.FindAsync(
+            jm => jm.CandidateId == candidateId && jm.JobId == jobId)).FirstOrDefault();
+
+        if (existingMatch == null)
+        {
+            existingMatch = new Entities.JobMatch
+            {
+                CandidateId = candidateId,
+                JobId = jobId,
+                MatchScore = 0,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.JobMatches.AddAsync(existingMatch);
+        }
+    }
+
+    public async Task<IEnumerable<Entities.JobMatch>> GetMutualMatchesAsync(int userId, bool isCandidate)
+    {
+        if (isCandidate)
+        {
+            return await _unitOfWork.JobMatches.FindAsync(jm => jm.CandidateId == userId && jm.MatchScore >= 70);
+        }
+        else
+        {
+            return await _unitOfWork.JobMatches.FindAsync(jm => jm.JobId == userId && jm.MatchScore >= 70);
+        }
+    }
+}
