@@ -6,6 +6,7 @@ using Recruitement.Ui.Blazor.Handlers;
 using Recruitement.Ui.Blazor.Auth;
 using Microsoft.AspNetCore.Components.Authorization;
 
+using Recruitement.Ui.Blazor.ApiClients;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -23,3 +24,8 @@ builder.Services.AddScoped(sp =>
 });
 
 await builder.Build().RunAsync();
+// Register typed API client for Candidates
+builder.Services.AddHttpClient<ICandidateApiClient, CandidateApiClient>(client =>
+{
+    client.BaseAddress = new Uri("https://localhost:5001/api/candidates");
+});
