@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Recruitment.Data;
 using Recruitment.Interfaces;
 using Recruitment.Services;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +20,27 @@ builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IMatchingService, MatchingService>();
 builder.Services.AddScoped<ICVAnalysisService, CVAnalysisService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+
+// JWT Authentication
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "THIS IS A DEV SECRET";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "Recruitment.Api";
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -43,6 +67,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors("AllowBlazor");
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

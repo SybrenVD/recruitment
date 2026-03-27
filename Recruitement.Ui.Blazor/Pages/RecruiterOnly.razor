@@ -1,0 +1,15 @@
+@page "/recruiter-only"
+
+<PageTitle>Recruiter Only</PageTitle>
+
+<AuthorizeView Roles="Recruiter">
+    <Authorized>
+        <h3>Welkom, recruiter!</h3>
+        <p>Deze pagina is alleen zichtbaar voor gebruikers met de rol <b>Recruiter</b>.</p>
+        <p>Je bent ingelogd als recruiter en ziet deze content.</p>
+    </Authorized>
+    <NotAuthorized>
+        <h3>Toegang geweigerd</h3>
+        <p class="text-danger">Je hebt geen toegang tot deze pagina.</p>
+    </NotAuthorized>
+</AuthorizeView>
