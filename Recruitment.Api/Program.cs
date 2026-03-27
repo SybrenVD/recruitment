@@ -10,8 +10,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
                 ?? ["http://localhost:5000", "https://localhost:5001"])
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+            .WithHeaders("Content-Type", "Authorization")
+            .WithMethods("GET", "POST", "PUT", "DELETE");
     });
 });
 
