@@ -19,24 +19,36 @@ public class JobService : IJobService
 
     public async Task<IEnumerable<Entities.Job>> GetAllAsync(string? searchTerm = null, string? location = null, string? experienceLevel = null)
     {
-        var jobs = await _unitOfWork.Jobs.GetAllAsync();
+        var jobs = (await _unitOfWork.Jobs.GetAllAsync()).ToList();
+
+        foreach (var job in jobs)
+        {
+            var skills = await _unitOfWork.JobSkills.FindAsync(js => js.JobId == job.Id);
+            foreach (var skill in skills)
+            {
+                var skillEntity = (await _unitOfWork.Skills.FindAsync(s => s.Id == skill.SkillId)).FirstOrDefault();
+                if (skillEntity != null)
+                    skill.Skill = skillEntity;
+            }
+            job.JobSkills = skills.ToList();
+        }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             searchTerm = searchTerm.ToLower();
             jobs = jobs.Where(j => 
                 (j.Title != null && j.Title.ToLower().Contains(searchTerm)) ||
-                (j.Description != null && j.Description.ToLower().Contains(searchTerm)));
+                (j.Description != null && j.Description.ToLower().Contains(searchTerm))).ToList();
         }
 
         if (!string.IsNullOrWhiteSpace(location))
         {
-            jobs = jobs.Where(j => j.Location != null && j.Location.ToLower().Contains(location.ToLower()));
+            jobs = jobs.Where(j => j.Location != null && j.Location.ToLower().Contains(location.ToLower())).ToList();
         }
 
         if (!string.IsNullOrWhiteSpace(experienceLevel))
         {
-            jobs = jobs.Where(j => j.ExperienceLevel != null && j.ExperienceLevel.ToLower() == experienceLevel.ToLower());
+            jobs = jobs.Where(j => j.ExperienceLevel != null && j.ExperienceLevel.ToLower() == experienceLevel.ToLower()).ToList();
         }
 
         return jobs;
@@ -46,6 +58,41 @@ public class JobService : IJobService
     {
         job.CreatedAt = DateTime.UtcNow;
         return await _unitOfWork.Jobs.AddAsync(job);
+    }
+
+    public async Task<Entities.Job> CreateWithSkillsAsync(Entities.Job job, List<(string name, int level)> skills)
+    {
+        job.CreatedAt = DateTime.UtcNow;
+        var createdJob = await _unitOfWork.Jobs.AddAsync(job);
+        
+        foreach (var (name, level) in skills)
+        {
+            var skill = await GetOrCreateSkillAsync(name);
+            var jobSkill = new Entities.JobSkill
+            {
+                JobId = createdJob.Id,
+                SkillId = skill.Id,
+                RequiredLevel = level,
+                Weight = 1
+            };
+            await _unitOfWork.JobSkills.AddAsync(jobSkill);
+        }
+        
+        return createdJob;
+    }
+
+    public async Task<Entities.Skill> GetOrCreateSkillAsync(string skillName)
+    {
+        var existingSkill = (await _unitOfWork.Skills.FindAsync(s => s.SkillName.ToLower() == skillName.ToLower())).FirstOrDefault();
+        if (existingSkill != null)
+            return existingSkill;
+        
+        var newSkill = new Entities.Skill
+        {
+            SkillName = skillName,
+            Category = "Custom"
+        };
+        return await _unitOfWork.Skills.AddAsync(newSkill);
     }
 
     public async Task UpdateAsync(Entities.Job job)
@@ -81,5 +128,15 @@ public class JobService : IJobService
     public async Task<IEnumerable<Entities.JobMatch>> GetMatchesAsync(int jobId)
     {
         return await _unitOfWork.JobMatches.FindAsync(jm => jm.JobId == jobId);
+    }
+
+    public async Task<IEnumerable<Entities.Job>> GetAvailableForCandidateAsync(int candidateId)
+    {
+        var allJobs = await GetAllAsync();
+        var swipedJobIds = (await _unitOfWork.JobMatches.FindAsync(jm => jm.CandidateId == candidateId))
+            .Select(jm => jm.JobId)
+            .ToList();
+        
+        return allJobs.Where(j => !swipedJobIds.Contains(j.Id)).ToList();
     }
 }

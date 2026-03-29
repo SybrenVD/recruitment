@@ -1,0 +1,254 @@
+@page "/post-job"
+@attribute [Authorize(Roles = "Recruiter")]
+@using Microsoft.AspNetCore.Authorization
+@inject RecruitmentApiService Api
+@inject AuthService Auth
+@inject NavigationManager Navigation
+@using M = Recruitement.Ui.Blazor.Models
+
+<PageTitle>Post a Job - Recruitment</PageTitle>
+
+<div class="container">
+    <h1>Post a New Job</h1>
+    
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="alert alert-danger">@Error</div>
+    }
+    
+    @if (Success)
+    {
+        <div class="alert alert-success">
+            <h4>Job Posted Successfully!</h4>
+            <p>Your job "@Job.Title" has been posted. Candidates can now apply.</p>
+            <button class="btn btn-primary" @onclick="GoToSwipe">Find Candidates</button>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="Job" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            
+            <div class="mb-3">
+                <label>Job Title *</label>
+                <InputText class="form-control" @bind-Value="Job.Title" placeholder="e.g., Senior Software Developer" />
+            </div>
+            
+            <div class="mb-3">
+                <label>Description</label>
+                <InputTextArea class="form-control" @bind-Value="Job.Description" rows="4" placeholder="Describe the role, responsibilities, and requirements..." />
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label>Location</label>
+                    <InputText class="form-control" @bind-Value="Job.Location" placeholder="e.g., Amsterdam" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label>Experience Level</label>
+                    <InputSelect class="form-control" @bind-Value="Job.ExperienceLevel">
+                        <option value="">Select...</option>
+                        <option value="Junior">Junior (0-2 years)</option>
+                        <option value="Medior">Medior (2-5 years)</option>
+                        <option value="Senior">Senior (5-10 years)</option>
+                        <option value="Lead">Lead (10+ years)</option>
+                    </InputSelect>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label>Required Skills</label>
+                <p class="text-muted small">Type skill names and press Enter to add</p>
+                
+                <div class="skills-input-container">
+                    <div class="skills-badges">
+                        @foreach (var skill in CustomSkills)
+                        {
+                            <span class="skill-badge">
+                                @skill.Name
+                                <span class="skill-level">Lv @skill.Level</span>
+                                <button type="button" class="remove-skill" @onclick="() => RemoveSkill(skill.Name)">×</button>
+                            </span>
+                        }
+                    </div>
+                    <div class="skill-input-row">
+                        <InputText class="form-control" @bind-Value="NewSkillName" placeholder="Type a skill..." @onkeydown="HandleSkillKeyDown" />
+                        <InputSelect class="form-select" @bind-Value="NewSkillLevel">
+                            <option value="1">Lv 1</option>
+                            <option value="2">Lv 2</option>
+                            <option value="3">Lv 3</option>
+                            <option value="4">Lv 4</option>
+                            <option value="5">Lv 5</option>
+                        </InputSelect>
+                        <button type="button" class="btn btn-outline-primary" @onclick="AddSkill">Add</button>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary btn-lg" type="submit" disabled="@Submitting">
+                @(Submitting ? "Posting..." : "Post Job")
+            </button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private Models.Job Job = new();
+    private List<CustomSkill> CustomSkills = new();
+    private string NewSkillName = "";
+    private int NewSkillLevel = 3;
+    private bool Submitting = false;
+    private bool Success = false;
+    private string? Error;
+
+    private class CustomSkill
+    {
+        public string Name { get; set; } = "";
+        public int Level { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var recruiterId = await Auth.GetUserIdAsync();
+        var role = await Auth.GetUserRoleAsync();
+        if (recruiterId.HasValue)
+        {
+            Job.RecruiterId = recruiterId.Value;
+        }
+        else
+        {
+            Error = "Could not determine recruiter ID. Are you logged in?";
+        }
+    }
+
+    private void AddSkill()
+    {
+        if (string.IsNullOrWhiteSpace(NewSkillName))
+            return;
+        
+        var skillName = NewSkillName.Trim();
+        if (!CustomSkills.Any(s => s.Name.Equals(skillName, StringComparison.OrdinalIgnoreCase)))
+        {
+            CustomSkills.Add(new CustomSkill { Name = skillName, Level = NewSkillLevel });
+        }
+        NewSkillName = "";
+    }
+
+    private void RemoveSkill(string name)
+    {
+        CustomSkills.RemoveAll(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task HandleSkillKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Task.Yield();
+            AddSkill();
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (CustomSkills.Count == 0)
+        {
+            Error = "Please add at least one skill";
+            return;
+        }
+
+        Submitting = true;
+        Error = null;
+        
+        try
+        {
+            var createdJob = await Api.CreateJobWithSkillsAsync(Job, CustomSkills.Select(s => (s.Name, s.Level)).ToList());
+            
+            Success = true;
+            Job = createdJob;
+        }
+        catch (Exception ex)
+        {
+            Error = $"Failed to post job: {ex.Message}";
+            if (Error.Contains("500"))
+            {
+                Error += " - Please make sure you're logged in as a Recruiter";
+            }
+        }
+        finally
+        {
+            Submitting = false;
+        }
+    }
+
+    private void GoToSwipe()
+    {
+        Navigation.NavigateTo("/swipe-candidates");
+    }
+}
+
+<style>
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .skills-input-container {
+        background: #f9f9f9;
+        border-radius: 10px;
+        padding: 15px;
+    }
+
+    .skills-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 15px;
+        min-height: 40px;
+    }
+
+    .skill-badge {
+        background: #667eea;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+    }
+
+    .skill-level {
+        font-size: 0.75rem;
+        opacity: 0.8;
+    }
+
+    .remove-skill {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        opacity: 0.7;
+    }
+
+    .remove-skill:hover {
+        opacity: 1;
+    }
+
+    .skill-input-row {
+        display: flex;
+        gap: 10px;
+    }
+
+    .skill-input-row .form-control {
+        flex: 1;
+    }
+
+    .skill-input-row .form-select {
+        width: 100px;
+    }
+</style>

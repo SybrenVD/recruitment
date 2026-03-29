@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Recruitment.Data;
 using Recruitment.Interfaces;
 using Recruitment.Services;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +22,8 @@ builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IMatchingService, MatchingService>();
 builder.Services.AddScoped<ICVAnalysisService, CVAnalysisService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IPdfReaderService, PdfReaderService>();
+builder.Services.AddScoped<IAIService, AIService>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "THIS IS A DEV SECRET";
@@ -43,15 +47,22 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    });
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazor", policy =>
     {
-        policy.WithOrigins("https://localhost:5001", "http://localhost:5000")
+        policy.WithOrigins("http://localhost:5246", "https://localhost:5247", "http://localhost:5000", "https://localhost:5001")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -62,8 +73,33 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<RecruitmentDbContext>();
     dbContext.Database.EnsureCreated();
     
-    var seeder = new DataSeeder(dbContext);
-    await seeder.SeedAsync();
+    // Only seed skills if empty
+    if (!dbContext.Skills.Any())
+    {
+        var skills = new[]
+        {
+            new Recruitment.Entities.Skill { SkillName = "C#", Category = "Programming" },
+            new Recruitment.Entities.Skill { SkillName = "JavaScript", Category = "Programming" },
+            new Recruitment.Entities.Skill { SkillName = "Python", Category = "Programming" },
+            new Recruitment.Entities.Skill { SkillName = "Java", Category = "Programming" },
+            new Recruitment.Entities.Skill { SkillName = "TypeScript", Category = "Programming" },
+            new Recruitment.Entities.Skill { SkillName = "Go", Category = "Programming" },
+            new Recruitment.Entities.Skill { SkillName = "SQL", Category = "Database" },
+            new Recruitment.Entities.Skill { SkillName = "PostgreSQL", Category = "Database" },
+            new Recruitment.Entities.Skill { SkillName = "React", Category = "Frontend" },
+            new Recruitment.Entities.Skill { SkillName = "Angular", Category = "Frontend" },
+            new Recruitment.Entities.Skill { SkillName = "Vue.js", Category = "Frontend" },
+            new Recruitment.Entities.Skill { SkillName = "ASP.NET Core", Category = "Backend" },
+            new Recruitment.Entities.Skill { SkillName = "Node.js", Category = "Backend" },
+            new Recruitment.Entities.Skill { SkillName = "Docker", Category = "DevOps" },
+            new Recruitment.Entities.Skill { SkillName = "Kubernetes", Category = "DevOps" },
+            new Recruitment.Entities.Skill { SkillName = "AWS", Category = "DevOps" },
+            new Recruitment.Entities.Skill { SkillName = "Git", Category = "Tools" },
+            new Recruitment.Entities.Skill { SkillName = "Agile", Category = "Soft Skills" }
+        };
+        dbContext.Skills.AddRange(skills);
+        dbContext.SaveChanges();
+    }
 }
 
 app.UseCors("AllowBlazor");

@@ -1,0 +1,194 @@
+@page "/register"
+@inject RecruitmentApiService Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Register - Recruitment</PageTitle>
+
+<div class="register-container">
+    <div class="register-card">
+        <h2>Create Account</h2>
+        
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="alert alert-danger">@Error</div>
+        }
+
+        <EditForm Model="FormModel" OnValidSubmit="HandleRegister">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label>I am a:</label>
+                <div class="role-buttons">
+                    <button type="button" class="role-btn @(FormModel.UserType == "candidate" ? "active" : "")" @onclick='() => FormModel.UserType = "candidate"'>
+                        👤 Kandidaat
+                    </button>
+                    <button type="button" class="role-btn @(FormModel.UserType == "recruiter" ? "active" : "")" @onclick='() => FormModel.UserType = "recruiter"'>
+                        🏢 Werkgever
+                    </button>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-6 mb-3">
+                    <label>First Name</label>
+                    <InputText class="form-control" @bind-Value="FormModel.FirstName" />
+                </div>
+                <div class="col-6 mb-3">
+                    <label>Last Name</label>
+                    <InputText class="form-control" @bind-Value="FormModel.LastName" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label>Email</label>
+                <InputText class="form-control" @bind-Value="FormModel.Email" />
+            </div>
+
+            <div class="mb-3">
+                <label>Password</label>
+                <InputText type="password" class="form-control" @bind-Value="FormModel.Password" />
+            </div>
+
+            <div class="mb-3">
+                <label>Location</label>
+                <InputText class="form-control" @bind-Value="FormModel.Location" placeholder="e.g., Amsterdam" />
+            </div>
+
+            @if (FormModel.UserType == "recruiter")
+            {
+                <div class="mb-3">
+                    <label>Company Name</label>
+                    <InputText class="form-control" @bind-Value="FormModel.Company" />
+                </div>
+            }
+
+            <button class="btn btn-primary w-100" type="submit" disabled="@Submitting">
+                @(Submitting ? "Creating..." : "Create Account")
+            </button>
+        </EditForm>
+
+        <div class="login-link">
+            Already have an account? <a href="/login">Login</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterFormModel FormModel = new();
+    private bool Submitting = false;
+    private string? Error;
+
+    private async Task HandleRegister()
+    {
+        Submitting = true;
+        Error = null;
+
+        try
+        {
+            var success = await Api.RegisterAsync(
+                FormModel.FirstName,
+                FormModel.LastName,
+                FormModel.Email,
+                FormModel.Password,
+                FormModel.Location,
+                FormModel.UserType,
+                FormModel.Company
+            );
+            if (success)
+            {
+                await AuthService.LoginAsync(FormModel.Email, FormModel.Password, FormModel.UserType);
+                var redirectUrl = FormModel.UserType == "recruiter" ? "/post-job" : "/profile";
+                Navigation.NavigateTo(redirectUrl, forceLoad: true);
+            }
+            else
+            {
+                Error = "Registration failed. Email may already be in use.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Error = $"Registration failed: {ex.Message}";
+        }
+        finally
+        {
+            Submitting = false;
+        }
+    }
+
+    private class RegisterFormModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string UserType { get; set; } = "candidate";
+        public string? Company { get; set; }
+    }
+}
+
+<style>
+    .register-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+    }
+
+    .register-card {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        width: 100%;
+        max-width: 450px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .register-card h2 {
+        text-align: center;
+        margin-bottom: 30px;
+        color: #333;
+    }
+
+    .role-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .role-btn {
+        flex: 1;
+        padding: 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.95rem;
+    }
+
+    .role-btn:hover {
+        border-color: #667eea;
+    }
+
+    .role-btn.active {
+        border-color: #667eea;
+        background: #667eea;
+        color: white;
+    }
+
+    .login-link {
+        text-align: center;
+        margin-top: 20px;
+        color: #666;
+    }
+
+    .login-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+    }
+</style>

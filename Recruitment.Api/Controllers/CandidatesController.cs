@@ -8,10 +8,12 @@ namespace Recruitment.Api.Controllers;
 public class CandidatesController : ControllerBase
 {
     private readonly ICandidateService _candidateService;
+    private readonly ICVAnalysisService _cvAnalysisService;
 
-    public CandidatesController(ICandidateService candidateService)
+    public CandidatesController(ICandidateService candidateService, ICVAnalysisService cvAnalysisService)
     {
         _candidateService = candidateService;
+        _cvAnalysisService = cvAnalysisService;
     }
 
     [HttpGet]
@@ -88,5 +90,28 @@ public class CandidatesController : ControllerBase
             return NotFound();
 
         return File(stream, "application/pdf");
+    }
+
+    [HttpGet("{id}/analysis")]
+    public async Task<IActionResult> GetAnalysis(int id)
+    {
+        var analysis = await _cvAnalysisService.GetAnalysisAsync(id);
+        if (analysis == null)
+            return NotFound();
+        return Ok(analysis);
+    }
+
+    [HttpGet("{id}/analyze")]
+    public async Task<IActionResult> AnalyzeCV(int id)
+    {
+        try
+        {
+            var analysis = await _cvAnalysisService.AnalyzeCVAsync(id);
+            return Ok(analysis);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 }

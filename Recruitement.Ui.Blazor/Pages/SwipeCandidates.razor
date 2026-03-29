@@ -1,0 +1,220 @@
+@page "/swipe-candidates"
+@attribute [Authorize(Roles = "Recruiter")]
+@using Microsoft.AspNetCore.Authorization
+@inject RecruitmentApiService Api
+@inject AuthService Auth
+@using M = Recruitement.Ui.Blazor.Models
+
+<PageTitle>Find Candidates</PageTitle>
+
+<div style="min-height: 100vh; background: #764ba2; padding: 20px;">
+    <div style="text-align: center; color: white; margin-bottom: 20px;">
+        <h1>Discover Candidates</h1>
+    </div>
+
+    @if (showMatch)
+    {
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+            <div style="background: white; padding: 40px; border-radius: 25px; text-align: center; max-width: 350px;">
+                <div style="font-size: 5rem;">🎉</div>
+                <h2 style="color: #764ba2; margin: 20px 0;">IT'S A MATCH!</h2>
+                <p>You and @matchedCandidateName both liked each other!</p>
+                <p style="color: #666;">Contact them at: @matchedCandidateEmail</p>
+                <button @onclick="CloseMatch" style="background: #764ba2; color: white; border: none; padding: 15px 40px; border-radius: 25px; font-size: 1.1rem; cursor: pointer; margin-top: 15px;">
+                    Continue Swiping
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div style="text-align: center; color: white; padding: 50px;">
+            <h2>Loading...</h2>
+        </div>
+    }
+    else if (!jobSelected)
+    {
+        <div style="background: white; border-radius: 20px; padding: 25px;">
+            <h3 style="text-align: center; color: #333;">Select a Job</h3>
+            <p style="text-align: center; color: #666;">Choose which job posting to find candidates for:</p>
+            
+            @if (recruiterJobs.Any())
+            {
+            <div style="margin-top: 20px;">
+                @if (!recruiterJobs.Any())
+                {
+                    <p style="color: red;">Debug: Recruiter ID = @recruiterId, Total jobs = @recruiterJobs.Count</p>
+                }
+                @foreach (var job in recruiterJobs)
+                {
+                    <div @onclick="() => SelectJob(job)" style="background: #f8f9fa; padding: 15px; border-radius: 15px; margin-bottom: 10px; cursor: pointer; transition: transform 0.2s;">
+                        <h4 style="margin: 0 0 5px; color: #333;">@job.Title</h4>
+                        <p style="margin: 0; color: #666; font-size: 0.9rem;">📍 @job.Location</p>
+                    </div>
+                }
+            </div>
+            }
+            else
+            {
+                <p style="text-align: center; color: #666; padding: 30px;">No jobs posted yet. <a href="/post-job" style="color: #764ba2;">Post a job</a> first.</p>
+            }
+        </div>
+    }
+    else if (currentCandidate != null)
+    {
+        <div style="background: white; border-radius: 20px; padding: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0; color: #333;">@currentCandidate.FirstName @currentCandidate.LastName</h2>
+                <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">
+                    @currentMatch?.MatchScore% Match
+                </span>
+            </div>
+            
+            <p style="color: #666; margin: 5px 0;">📍 @currentCandidate.Location</p>
+            <p style="color: #666; margin: 5px 0;">✉️ @currentCandidate.Email</p>
+            
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;"/>
+            
+            @if (!string.IsNullOrEmpty(currentMatch?.SkillGap))
+            {
+                <div style="background: #fff3cd; padding: 12px; border-radius: 10px; margin-top: 15px;">
+                    <h5 style="margin: 0 0 5px; color: #856404;">Skill Gap:</h5>
+                    <p style="margin: 0; color: #856404; font-size: 0.9rem;">@currentMatch.SkillGap</p>
+                </div>
+            }
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 50px; margin: 25px 0;">
+            <button @onclick="() => HandleSwipe(false)" 
+                    style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #ff4757; background: white; color: #ff4757; font-size: 24px; cursor: pointer;">
+                ✕
+            </button>
+            <button @onclick="() => HandleSwipe(true)" 
+                    style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #2ed573; background: #2ed573; color: white; font-size: 24px; cursor: pointer;">
+                ♥
+            </button>
+        </div>
+
+        <div style="text-align: center;">
+            <button @onclick="ChangeJob" style="background: none; border: none; color: white; cursor: pointer; font-size: 0.9rem;">
+                ← Change Job
+            </button>
+        </div>
+
+        <div style="text-align: center; color: white; margin-top: 15px;">
+            <p>@(currentIndex + 1) of @matches.Count</p>
+        </div>
+    }
+    else
+    {
+        <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
+            <span style="font-size: 4rem;">🎉</span>
+            <h2 style="color: #333;">No More Candidates!</h2>
+            <p style="color: #666;">Check back later for new candidates.</p>
+            <button @onclick="LoadCandidates" style="background: #764ba2; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; margin-top: 10px;">
+                Refresh
+            </button>
+            <br/>
+            <button @onclick="ChangeJob" style="background: none; border: none; color: #764ba2; cursor: pointer; margin-top: 15px;">
+                ← Change Job
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<M.Job> recruiterJobs = new();
+    private List<M.JobMatch> matches = new();
+    private M.Job? selectedJob;
+    private M.JobMatch? currentMatch;
+    private M.Candidate? currentCandidate;
+    private int currentIndex = 0;
+    private bool loading = true;
+    private bool jobSelected = false;
+    private bool showMatch = false;
+    private string matchedCandidateName = "";
+    private string matchedCandidateEmail = "";
+    private int recruiterId = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await Auth.GetUserIdAsync();
+        if (userId.HasValue)
+            recruiterId = userId.Value;
+        
+        var allJobs = await Api.GetJobsAsync();
+        recruiterJobs = allJobs.Where(j => j.RecruiterId == recruiterId).ToList();
+        loading = false;
+    }
+
+    private async Task SelectJob(M.Job job)
+    {
+        selectedJob = job;
+        jobSelected = true;
+        await LoadCandidates();
+    }
+
+    private async Task LoadCandidates()
+    {
+        if (selectedJob == null) return;
+        
+        loading = true;
+        matches = await Api.GetAvailableCandidatesForRecruiterAsync(recruiterId, selectedJob.Id);
+        currentIndex = 0;
+        ShowCurrentCandidate();
+        loading = false;
+    }
+
+    private void ShowCurrentCandidate()
+    {
+        if (currentIndex < matches.Count)
+        {
+            currentMatch = matches[currentIndex];
+            currentCandidate = currentMatch?.Candidate;
+        }
+        else
+        {
+            currentMatch = null;
+            currentCandidate = null;
+        }
+    }
+
+    private async Task HandleSwipe(bool isLike)
+    {
+        if (currentCandidate == null || selectedJob == null) return;
+        
+        try
+        {
+            var result = await Api.SwipeCandidateAsync(currentCandidate.Id, selectedJob.Id, isLike);
+            if (result && isLike)
+            {
+                matchedCandidateName = $"{currentCandidate.FirstName} {currentCandidate.LastName}";
+                matchedCandidateEmail = currentCandidate.Email;
+                showMatch = true;
+                return;
+            }
+        }
+        catch { }
+        
+        currentIndex++;
+        ShowCurrentCandidate();
+    }
+
+    private void CloseMatch()
+    {
+        showMatch = false;
+        currentIndex++;
+        ShowCurrentCandidate();
+    }
+
+    private void ChangeJob()
+    {
+        jobSelected = false;
+        selectedJob = null;
+        matches.Clear();
+        currentMatch = null;
+        currentCandidate = null;
+        currentIndex = 0;
+    }
+}

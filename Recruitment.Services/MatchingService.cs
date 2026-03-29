@@ -44,7 +44,7 @@ public class MatchingService : IMatchingService
         {
             existingMatch.MatchScore = matchScore;
             existingMatch.SkillGap = string.Join(", ", skillGaps);
-            await _unitOfWork.JobMatches.UpdateAsync(existingMatch);
+            await _unitOfWork.SaveChangesAsync();
             return existingMatch;
         }
 
@@ -88,7 +88,7 @@ public class MatchingService : IMatchingService
         return matches.OrderByDescending(m => m.MatchScore).Take(limit);
     }
 
-    public async Task ProcessSwipeAsync(int candidateId, int jobId, bool isLike)
+    public async Task<bool> ProcessSwipeAsync(int candidateId, int jobId, bool isLike)
     {
         var existingMatch = (await _unitOfWork.JobMatches.FindAsync(
             jm => jm.CandidateId == candidateId && jm.JobId == jobId)).FirstOrDefault();
@@ -100,21 +100,119 @@ public class MatchingService : IMatchingService
                 CandidateId = candidateId,
                 JobId = jobId,
                 MatchScore = 0,
+                IsLikedByCandidate = isLike,
                 CreatedAt = DateTime.UtcNow
             };
             await _unitOfWork.JobMatches.AddAsync(existingMatch);
         }
+        else
+        {
+            existingMatch.IsLikedByCandidate = isLike;
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+
+        if (isLike && existingMatch.IsLikedByRecruiter == true)
+        {
+            return true;
+        }
+        
+        return false;
+    }
+
+    public async Task<bool> ProcessRecruiterSwipeAsync(int candidateId, int jobId, bool isLike)
+    {
+        var existingMatch = (await _unitOfWork.JobMatches.FindAsync(
+            jm => jm.CandidateId == candidateId && jm.JobId == jobId)).FirstOrDefault();
+
+        if (existingMatch == null)
+        {
+            existingMatch = new Entities.JobMatch
+            {
+                CandidateId = candidateId,
+                JobId = jobId,
+                MatchScore = 0,
+                IsLikedByRecruiter = isLike,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.JobMatches.AddAsync(existingMatch);
+        }
+        else
+        {
+            existingMatch.IsLikedByRecruiter = isLike;
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+
+        if (isLike && existingMatch.IsLikedByCandidate == true)
+        {
+            return true;
+        }
+        
+        return false;
     }
 
     public async Task<IEnumerable<Entities.JobMatch>> GetMutualMatchesAsync(int userId, bool isCandidate)
     {
         if (isCandidate)
         {
-            return await _unitOfWork.JobMatches.FindAsync(jm => jm.CandidateId == userId && jm.MatchScore >= 70);
+            var matches = (await _unitOfWork.JobMatches.FindAsync(jm => 
+                jm.CandidateId == userId && 
+                jm.IsLikedByCandidate == true && 
+                jm.IsLikedByRecruiter == true)).ToList();
+            
+            foreach (var match in matches)
+            {
+                var job = await _unitOfWork.Jobs.GetByIdAsync(match.JobId);
+                if (job != null)
+                {
+                    var recruiter = await _unitOfWork.Recruiters.GetByIdAsync(job.RecruiterId);
+                    match.Job = job;
+                    match.Job.Recruiter = recruiter;
+                }
+            }
+            
+            return matches;
         }
         else
         {
-            return await _unitOfWork.JobMatches.FindAsync(jm => jm.JobId == userId && jm.MatchScore >= 70);
+            var allMatches = await _unitOfWork.JobMatches.FindAsync(jm => 
+                jm.Job != null && jm.Job.RecruiterId == userId);
+            var mutualMatches = allMatches.Where(jm => 
+                jm.IsLikedByCandidate == true && 
+                jm.IsLikedByRecruiter == true).ToList();
+            
+            foreach (var match in mutualMatches)
+            {
+                match.Candidate = await _unitOfWork.Candidates.GetByIdAsync(match.CandidateId);
+            }
+            
+            return mutualMatches;
         }
+    }
+
+    public async Task<IEnumerable<Entities.JobMatch>> GetAvailableForRecruiterAsync(int recruiterId, int jobId)
+    {
+        var job = await _unitOfWork.Jobs.GetByIdAsync(jobId);
+        if (job == null || job.RecruiterId != recruiterId)
+            return Enumerable.Empty<Entities.JobMatch>();
+
+        var allMatches = await _unitOfWork.JobMatches.FindAsync(jm => jm.JobId == jobId && jm.IsLikedByRecruiter == null);
+        
+        var result = new List<Entities.JobMatch>();
+        foreach (var match in allMatches)
+        {
+            await CalculateMatchAsync(match.CandidateId, jobId);
+            var updatedMatch = await _unitOfWork.JobMatches.FindAsync(jm => jm.CandidateId == match.CandidateId && jm.JobId == jobId);
+            var fullMatch = updatedMatch.FirstOrDefault();
+            if (fullMatch != null && fullMatch.IsLikedByRecruiter == null)
+            {
+                var candidate = await _unitOfWork.Candidates.GetByIdAsync(fullMatch.CandidateId);
+                fullMatch.Candidate = candidate;
+                result.Add(fullMatch);
+            }
+        }
+        
+        return result.OrderByDescending(m => m.MatchScore);
     }
 }

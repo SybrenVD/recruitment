@@ -9,6 +9,7 @@ namespace Recruitment.Entities
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = string.Empty;
         public string? Phone { get; set; }
         public string? Location { get; set; }
         public string? CVFilePath { get; set; }
