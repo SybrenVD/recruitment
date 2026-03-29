@@ -1,5 +1,6 @@
 using Recruitment.Interfaces;
 using System.Text;
+using System.Text.Json;
 
 namespace Recruitment.Services;
 
@@ -52,19 +53,13 @@ public class CVAnalysisService : ICVAnalysisService
             cvText, 
             $"{candidate.FirstName} {candidate.LastName}", 
             candidate.Location ?? "unspecified");
-        
+
         if (cvReadError)
         {
-            aiAnalysis = "## Notice\n\nYour CV appears to be an image-based PDF (scanned or created from Google Docs/image). " +
-                        "Text extraction cannot read image-based PDFs.\n\n" +
-                        "To enable AI analysis, please upload a text-based PDF with actual text content.\n\n" +
-                        aiAnalysis;
+            aiAnalysis = "{ \"error\": \"Your CV appears to be an image-based PDF (scanned or created from Google Docs/image). Text extraction cannot read image-based PDFs. Please upload a text-based PDF with actual text content.\" }" + aiAnalysis;
         }
 
-        var summary = GenerateSummary(candidate, candidateSkills, cvText, aiAnalysis);
-        var strengths = GenerateStrengths(candidate, candidateSkills, aiAnalysis);
-        var weaknesses = GenerateWeaknesses(candidate, candidateSkills, aiAnalysis);
-        var experienceLevel = DetermineExperienceLevel(candidateSkills, aiAnalysis);
+        var (summary, strengths, weaknesses, experienceLevel) = ParseAIAnalysis(candidate, candidateSkills, cvText, aiAnalysis);
 
         var analysis = new Entities.CVAnalysis
         {
@@ -75,23 +70,100 @@ public class CVAnalysisService : ICVAnalysisService
             Weaknesses = weaknesses,
             CreatedAt = DateTime.UtcNow
         };
-        
+
         await _unitOfWork.CVAnalyses.AddAsync(analysis);
 
         return analysis;
     }
 
-    private string GenerateSummary(Entities.Candidate candidate, List<Entities.CandidateSkill> skills, string cvText, string aiAnalysis)
+    private (string summary, string strengths, string weaknesses, string experienceLevel) ParseAIAnalysis(
+        Entities.Candidate candidate, 
+        List<Entities.CandidateSkill> skills, 
+        string cvText, 
+        string aiAnalysis)
+    {
+        var summary = GenerateSummary(candidate, skills, cvText);
+        var strengths = GenerateStrengths(candidate, skills);
+        var weaknesses = GenerateWeaknesses(candidate, skills);
+        var experienceLevel = "Not specified";
+
+        try
+        {
+            // Try to extract JSON from the response
+            var jsonStart = aiAnalysis.IndexOf('{');
+            var jsonEnd = aiAnalysis.LastIndexOf('}');
+
+            if (jsonStart >= 0 && jsonEnd > jsonStart)
+            {
+                var jsonStr = aiAnalysis.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                var jsonDoc = JsonDocument.Parse(jsonStr);
+                var root = jsonDoc.RootElement;
+
+                if (root.TryGetProperty("summary", out var summaryElement))
+                {
+                    summary = (summaryElement.GetString() ?? summary).Trim();
+                }
+
+                if (root.TryGetProperty("strengths", out var strengthsArray))
+                {
+                    var strengthsList = new StringBuilder();
+                    strengthsList.AppendLine("AI Analysis - Key Strengths:");
+                    foreach (var strength in strengthsArray.EnumerateArray())
+                    {
+                        strengthsList.AppendLine($"• {strength.GetString()}");
+                    }
+                    strengths = strengthsList.ToString();
+                }
+
+                if (root.TryGetProperty("weaknesses", out var weaknessesArray))
+                {
+                    var weaknessesList = new StringBuilder();
+                    weaknessesList.AppendLine("AI Analysis - Areas for Development:");
+                    foreach (var weakness in weaknessesArray.EnumerateArray())
+                    {
+                        weaknessesList.AppendLine($"• {weakness.GetString()}");
+                    }
+                    if (root.TryGetProperty("improvement_suggestions", out var suggestionsArray))
+                    {
+                        weaknessesList.AppendLine();
+                        weaknessesList.AppendLine("Improvement Suggestions:");
+                        foreach (var suggestion in suggestionsArray.EnumerateArray())
+                        {
+                            weaknessesList.AppendLine($"• {suggestion.GetString()}");
+                        }
+                    }
+                    weaknesses = weaknessesList.ToString();
+                }
+
+                if (root.TryGetProperty("experience_level", out var levelElement))
+                {
+                    var level = levelElement.GetString()?.Trim();
+                    if (!string.IsNullOrEmpty(level))
+                    {
+                        experienceLevel = level;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // If JSON parsing fails, use fallback analysis
+        }
+
+        return (summary, strengths, weaknesses, experienceLevel);
+    }
+
+    private string GenerateSummary(Entities.Candidate candidate, List<Entities.CandidateSkill> skills, string cvText)
     {
         var skillNames = skills.OrderByDescending(s => s.Level).Take(5).Select(s => s.Skill?.SkillName ?? "Unknown").ToList();
         var skillText = skillNames.Any() ? string.Join(", ", skillNames) : "various technical skills";
-        
+
         var sb = new StringBuilder();
         sb.AppendLine($"Profile Analysis for {candidate.FirstName} {candidate.LastName}");
         sb.AppendLine();
         sb.AppendLine($"{candidate.FirstName} is a professional based in {candidate.Location ?? "unspecified location"} with expertise in {skillText}.");
         sb.AppendLine();
-        
+
         if (skills.Any())
         {
             var avgLevel = skills.Average(s => s.Level);
@@ -108,11 +180,11 @@ public class CVAnalysisService : ICVAnalysisService
                 sb.AppendLine("This candidate is developing their skill set and would be best suited for entry-level or junior positions.");
             }
         }
-        
+
         if (!string.IsNullOrEmpty(cvText) && cvText.Length > 50)
         {
             sb.AppendLine("A CV has been uploaded with approximately " + (cvText.Split(' ').Length) + " words of content.");
-            
+
             var keywords = new[] { "experience", "projects", "education", "certifications", "achievements" };
             var foundKeywords = keywords.Where(k => cvText.ToLower().Contains(k)).ToList();
             if (foundKeywords.Any())
@@ -124,25 +196,14 @@ public class CVAnalysisService : ICVAnalysisService
         {
             sb.AppendLine("A CV has been uploaded and is available for review.");
         }
-        
-        if (!string.IsNullOrEmpty(aiAnalysis) && aiAnalysis.Contains("## Summary"))
-        {
-            var startIdx = aiAnalysis.IndexOf("## Summary");
-            var endIdx = aiAnalysis.IndexOf("## Key Strengths");
-            if (startIdx >= 0 && endIdx > startIdx)
-            {
-                sb.AppendLine();
-                sb.AppendLine(aiAnalysis.Substring(startIdx + 11, endIdx - startIdx - 11).Trim());
-            }
-        }
-        
+
         return sb.ToString();
     }
 
-    private string GenerateStrengths(Entities.Candidate candidate, List<Entities.CandidateSkill> skills, string aiAnalysis)
+    private string GenerateStrengths(Entities.Candidate candidate, List<Entities.CandidateSkill> skills)
     {
         var sb = new StringBuilder();
-        
+
         if (skills.Any())
         {
             var topSkills = skills.OrderByDescending(s => s.Level).Take(4).ToList();
@@ -161,7 +222,7 @@ public class CVAnalysisService : ICVAnalysisService
                 sb.AppendLine($"• {skillName}: {levelText} (Level {skill.Level}/5)");
             }
         }
-        
+
         sb.AppendLine();
         sb.AppendLine("Key Attributes:");
         sb.AppendLine("• Based in " + (candidate.Location ?? "unspecified location"));
@@ -170,28 +231,16 @@ public class CVAnalysisService : ICVAnalysisService
             sb.AppendLine("• CV documentation available");
         }
         sb.AppendLine("• Profile created: " + candidate.CreatedAt.ToString("MMMM yyyy"));
-        
-        if (!string.IsNullOrEmpty(aiAnalysis) && aiAnalysis.Contains("Key Strengths"))
-        {
-            sb.AppendLine();
-            sb.AppendLine("--- AI Analysis ---");
-            var startIdx = aiAnalysis.IndexOf("Key Strengths");
-            var endIdx = aiAnalysis.IndexOf("## Areas for Development");
-            if (startIdx >= 0 && endIdx > startIdx)
-            {
-                sb.AppendLine(aiAnalysis.Substring(startIdx, endIdx - startIdx));
-            }
-        }
-        
+
         return sb.ToString();
     }
 
-    private string GenerateWeaknesses(Entities.Candidate candidate, List<Entities.CandidateSkill> skills, string aiAnalysis)
+    private string GenerateWeaknesses(Entities.Candidate candidate, List<Entities.CandidateSkill> skills)
     {
         var sb = new StringBuilder();
-        
+
         sb.AppendLine("Areas for Development:");
-        
+
         if (!skills.Any())
         {
             sb.AppendLine("• No skills currently listed - recommend adding technical skills to improve visibility");
@@ -208,7 +257,7 @@ public class CVAnalysisService : ICVAnalysisService
                     sb.AppendLine($"  - {skillName} (Level {skill.Level}/5)");
                 }
             }
-            
+
             var skillGapAreas = GetSuggestedSkills(skills);
             if (skillGapAreas.Any())
             {
@@ -220,33 +269,13 @@ public class CVAnalysisService : ICVAnalysisService
                 }
             }
         }
-        
+
         if (string.IsNullOrEmpty(candidate.CVFilePath))
         {
             sb.AppendLine();
             sb.AppendLine("• No CV uploaded - recommend uploading a CV to increase chances of matching with employers");
         }
-        
-        if (!string.IsNullOrEmpty(aiAnalysis) && aiAnalysis.Contains("Recommended Skills"))
-        {
-            sb.AppendLine();
-            sb.AppendLine("--- AI Recommendations ---");
-            var startIdx = aiAnalysis.IndexOf("Recommended Skills");
-            if (startIdx >= 0)
-            {
-                var remaining = aiAnalysis.Substring(startIdx);
-                var endIdx = remaining.IndexOf("## Experience");
-                if (endIdx > 0)
-                {
-                    sb.AppendLine(remaining.Substring(0, endIdx));
-                }
-                else
-                {
-                    sb.AppendLine(remaining);
-                }
-            }
-        }
-        
+
         return sb.ToString();
     }
 
@@ -276,28 +305,12 @@ public class CVAnalysisService : ICVAnalysisService
 
     private string DetermineExperienceLevel(List<Entities.CandidateSkill> skills, string aiAnalysis)
     {
-        if (!string.IsNullOrEmpty(aiAnalysis) && aiAnalysis.Contains("Experience Level"))
-        {
-            var startIdx = aiAnalysis.IndexOf("Experience Level Assessment");
-            if (startIdx >= 0)
-            {
-                var remaining = aiAnalysis.Substring(startIdx + "Experience Level Assessment".Length);
-                var endIdx = remaining.IndexOf("##");
-                if (endIdx > 0 && endIdx < 200)
-                {
-                    var level = remaining.Substring(0, endIdx).Trim();
-                    if (!string.IsNullOrEmpty(level))
-                        return level;
-                }
-            }
-        }
-        
         if (!skills.Any())
             return "Not specified";
-            
+
         var avgLevel = skills.Average(s => s.Level);
         var maxLevel = skills.Max(s => s.Level);
-        
+
         if (avgLevel >= 4 && maxLevel >= 5)
             return "Senior (5+ years experience)";
         if (avgLevel >= 3.5 && maxLevel >= 4)

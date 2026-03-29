@@ -263,7 +263,7 @@ public class RecruitmentApiService
         using var fileContent = new StreamContent(stream);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
         content.Add(fileContent, "file", file.Name);
-        
+
         var response = await _http.PostAsync($"api/candidates/{candidateId}/cv", content);
         return response.IsSuccessStatusCode;
     }

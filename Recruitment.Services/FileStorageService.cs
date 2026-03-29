@@ -8,7 +8,7 @@ public class FileStorageService : IFileStorageService
 
     public FileStorageService(IConfiguration configuration)
     {
-        _basePath = configuration.GetValue<string>("FileStorage:BasePath") ?? "wwwroot/uploads";
+        _basePath = configuration.GetValue<string>("FileStorage:BasePath") ?? Path.Combine(AppContext.BaseDirectory, "uploads");
     }
 
     public async Task<string> SaveFileAsync(Stream fileStream, string fileName, string container)
