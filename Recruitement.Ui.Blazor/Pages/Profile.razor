@@ -1,0 +1,357 @@
+@page "/profile"
+@attribute [Authorize(Roles = "Candidate")]
+@using Microsoft.AspNetCore.Authorization
+@inject RecruitmentApiService Api
+@inject AuthService Auth
+@using M = Recruitement.Ui.Blazor.Models
+
+<PageTitle>My Profile - Recruitment</PageTitle>
+
+<div class="container">
+    <h1>My Profile</h1>
+
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="alert alert-danger">@Error</div>
+    }
+
+    @if (ShowSuccess)
+    {
+        <div class="alert alert-success">@SuccessMessage</div>
+    }
+
+    @if (loading)
+    {
+        <div class="loading">Loading profile...</div>
+    }
+    else if (candidate != null)
+    {
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="avatar">@GetInitials()</div>
+                <div class="profile-info">
+                    <h2>@candidate.FirstName @candidate.LastName</h2>
+                    <p>📍 @candidate.Location</p>
+                    <p>✉️ @candidate.Email</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="cv-section">
+            <h3>📄 CV Upload</h3>
+            <p class="text-muted">Upload your CV in PDF format to get matched with jobs</p>
+            
+            <div class="upload-area">
+                @if (uploading)
+                {
+                    <div class="spinner"></div>
+                    <p>Uploading...</p>
+                }
+                else if (candidate.CVFilePath != null)
+                {
+                    <div class="upload-success">
+                        <span class="check-icon">✓</span>
+                        <p><strong>CV uploaded:</strong> @candidate.CVFilePath</p>
+                    </div>
+                    <button class="btn btn-primary mt-3" @onclick="AnalyzeCV" disabled="@analyzing">
+                        @(analyzing ? "🤖 Analyzing..." : "🤖 Analyze CV with AI")
+                    </button>
+                }
+                else
+                {
+                    <label class="upload-label">
+                        <InputFile OnChange="HandleFileSelected" accept=".pdf" />
+                        <span class="upload-icon">📁</span>
+                        <span>Click to upload CV (PDF)</span>
+                    </label>
+                }
+            </div>
+        </div>
+
+        @if (analysis != null)
+        {
+            <div class="analysis-section">
+                <h3>🤖 AI Analysis</h3>
+                <div class="analysis-card">
+                    <div class="analysis-item">
+                        <h5>📝 Summary</h5>
+                        <p>@analysis.Summary</p>
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(analysis.Strengths))
+                    {
+                        <div class="analysis-item">
+                            <h5>💪 Strengths</h5>
+                            <p>@analysis.Strengths</p>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(analysis.Weaknesses))
+                    {
+                        <div class="analysis-item">
+                            <h5>📚 Areas for Improvement</h5>
+                            <p>@analysis.Weaknesses</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            <p>Could not find your profile. Please register first.</p>
+            <a href="/register" class="btn btn-primary">Register</a>
+        </div>
+    }
+</div>
+
+@code {
+    private M.Candidate? candidate;
+    private M.CVAnalysis? analysis;
+    private bool uploading = false;
+    private bool analyzing = false;
+    private bool loading = true;
+    private string? Error;
+    private string? SuccessMessage;
+    private bool ShowSuccess = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        loading = true;
+        Error = null;
+
+        try
+        {
+            var email = await Auth.GetUserEmailAsync();
+            if (email != null)
+            {
+                candidate = await Api.GetCandidateByEmailAsync(email);
+                if (candidate != null && candidate.CVFilePath != null)
+                {
+                    try
+                    {
+                        analysis = await Api.GetAnalysisAsync(candidate.Id);
+                    }
+                    catch { }
+                }
+            }
+            else
+            {
+                Error = "Not logged in";
+            }
+        }
+        catch (Exception ex)
+        {
+            Error = $"Failed to load profile: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string GetInitials()
+    {
+        var first = candidate?.FirstName?.FirstOrDefault() ?? '?';
+        var last = candidate?.LastName?.FirstOrDefault() ?? '?';
+        return $"{first}{last}".ToUpper();
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (candidate == null)
+        {
+            Error = "Profile not loaded. Please refresh.";
+            return;
+        }
+
+        var file = e.File;
+        if (file.ContentType != "application/pdf")
+        {
+            Error = "Please upload a PDF file";
+            return;
+        }
+
+        uploading = true;
+        Error = null;
+        ShowSuccess = false;
+
+        try
+        {
+            var response = await Api.UploadCVAsync(candidate.Id, file);
+            if (response)
+            {
+                SuccessMessage = "CV uploaded successfully!";
+                ShowSuccess = true;
+                candidate.CVFilePath = file.Name;
+                analysis = null;
+            }
+            else
+            {
+                Error = "Failed to upload CV";
+            }
+        }
+        catch (Exception ex)
+        {
+            Error = $"Failed to upload CV: {ex.Message}";
+        }
+        finally
+        {
+            uploading = false;
+        }
+    }
+
+    private async Task AnalyzeCV()
+    {
+        if (candidate == null) return;
+
+        analyzing = true;
+        Error = null;
+
+        try
+        {
+            analysis = await Api.AnalyzeCVAsync(candidate.Id);
+        }
+        catch (Exception ex)
+        {
+            Error = $"Analysis failed: {ex.Message}";
+        }
+        finally
+        {
+            analyzing = false;
+        }
+    }
+}
+
+<style>
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+
+    .profile-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 25px;
+        margin-bottom: 20px;
+        color: white;
+    }
+
+    .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .avatar {
+        width: 80px;
+        height: 80px;
+        background: white;
+        color: #667eea;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: bold;
+    }
+
+    .profile-info h2 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .profile-info p {
+        margin: 5px 0 0;
+        opacity: 0.9;
+    }
+
+    .cv-section, .analysis-section {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .cv-section h3, .analysis-section h3 {
+        margin-top: 0;
+        color: #333;
+    }
+
+    .upload-area {
+        padding: 30px;
+        border: 2px dashed #ccc;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .upload-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        color: #666;
+    }
+
+    .upload-icon {
+        font-size: 2rem;
+    }
+
+    .upload-success {
+        color: #2ed573;
+    }
+
+    .check-icon {
+        font-size: 2rem;
+        display: block;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        margin: 0 auto 10px;
+    }
+
+    .analysis-card {
+        background: #f9f9f9;
+        padding: 20px;
+        border-radius: 10px;
+    }
+
+    .analysis-item {
+        margin-bottom: 20px;
+    }
+
+    .analysis-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .analysis-item h5 {
+        margin: 0 0 10px;
+        color: #667eea;
+    }
+
+    .analysis-item p {
+        margin: 0;
+        color: #444;
+        line-height: 1.6;
+    }
+</style>

@@ -1,0 +1,146 @@
+@page "/swipe"
+@inject RecruitmentApiService Api
+@inject AuthService Auth
+@using M = Recruitement.Ui.Blazor.Models
+
+<PageTitle>Find Jobs</PageTitle>
+
+<div style="min-height: 100vh; background: #667eea; padding: 20px;">
+    @if (showMatch)
+    {
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+            <div style="background: white; padding: 40px; border-radius: 25px; text-align: center; max-width: 350px;">
+                <div style="font-size: 5rem;">🎉</div>
+                <h2 style="color: #667eea; margin: 20px 0;">IT'S A MATCH!</h2>
+                <p>You and the recruiter both liked each other!</p>
+                <button @onclick="CloseMatch" style="background: #667eea; color: white; border: none; padding: 15px 40px; border-radius: 25px; font-size: 1.1rem; cursor: pointer; margin-top: 15px;">
+                    Continue Swiping
+                </button>
+            </div>
+        </div>
+    }
+
+    <div style="text-align: center; color: white; margin-bottom: 20px;">
+        <h1>Discover Jobs</h1>
+    </div>
+
+    @if (loading)
+    {
+        <div style="text-align: center; color: white; padding: 50px;">
+            <h2>Loading...</h2>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div style="background: white; padding: 20px; border-radius: 15px; text-align: center;">
+            <h3 style="color: red;">Error: @errorMessage</h3>
+            <button @onclick="LoadJobs" style="padding: 10px 20px; margin-top: 10px;">Retry</button>
+        </div>
+    }
+    else if (jobs.Count == 0)
+    {
+        <div style="background: white; padding: 40px; border-radius: 15px; text-align: center;">
+            <span style="font-size: 4rem;">📭</span>
+            <h2 style="color: #333;">No Jobs Available</h2>
+            <p style="color: #666;">Check back later for new opportunities.</p>
+            <button @onclick="LoadJobs" style="background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 25px; cursor: pointer; margin-top: 10px;">Refresh</button>
+        </div>
+    }
+    else
+    {
+        <div style="background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0; color: #333;">@currentJob?.Title</h2>
+            <p style="color: #666;">📍 @currentJob?.Location</p>
+            @if (!string.IsNullOrEmpty(currentJob?.ExperienceLevel))
+            {
+                <p style="color: #666;">💼 @currentJob?.ExperienceLevel</p>
+            }
+            <hr/>
+            <p>@currentJob?.Description</p>
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 50px;">
+            <button @onclick="() => HandleSwipe(false)" 
+                    style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #ff4757; background: white; color: #ff4757; font-size: 24px; cursor: pointer;">
+                ✕
+            </button>
+            <button @onclick="() => HandleSwipe(true)" 
+                    style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #2ed573; background: #2ed573; color: white; font-size: 24px; cursor: pointer;">
+                ♥
+            </button>
+        </div>
+
+        <div style="text-align: center; color: white; margin-top: 20px;">
+            <p>@(currentIndex + 1) of @jobs.Count</p>
+        </div>
+    }
+</div>
+
+@code {
+    private List<M.Job> jobs = new();
+    private M.Job? currentJob;
+    private int currentIndex = 0;
+    private bool loading = true;
+    private int candidateId = 1;
+    private string? errorMessage;
+    private bool showMatch = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await Auth.GetUserIdAsync();
+        if (userId.HasValue)
+            candidateId = userId.Value;
+        await LoadJobs();
+    }
+
+    private async Task LoadJobs()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            jobs = await Api.GetAvailableJobsAsync(candidateId);
+            currentIndex = 0;
+            SetCurrentJob();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        loading = false;
+    }
+
+    private void SetCurrentJob()
+    {
+        if (currentIndex < jobs.Count)
+            currentJob = jobs[currentIndex];
+        else
+            currentJob = null;
+    }
+
+    private async Task HandleSwipe(bool isLike)
+    {
+        if (currentJob == null) return;
+        
+        try
+        {
+            var isMatch = await Api.SwipeAsync(candidateId, currentJob.Id, isLike);
+            if (isMatch && isLike)
+            {
+                showMatch = true;
+                return;
+            }
+        }
+        catch { }
+        
+        currentIndex++;
+        SetCurrentJob();
+    }
+
+    private void CloseMatch()
+    {
+        showMatch = false;
+        currentIndex++;
+        SetCurrentJob();
+    }
+}

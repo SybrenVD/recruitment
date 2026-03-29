@@ -40,6 +40,39 @@ public class JobsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
+    public class CreateJobRequest
+    {
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public string? Location { get; set; }
+        public string? ExperienceLevel { get; set; }
+        public int RecruiterId { get; set; }
+        public List<SkillInput>? Skills { get; set; }
+    }
+
+    public class SkillInput
+    {
+        public string Name { get; set; } = "";
+        public int Level { get; set; }
+    }
+
+    [HttpPost("create-with-skills")]
+    public async Task<IActionResult> CreateWithSkills([FromBody] CreateJobRequest request)
+    {
+        var job = new Entities.Job
+        {
+            Title = request.Title,
+            Description = request.Description,
+            Location = request.Location,
+            ExperienceLevel = request.ExperienceLevel,
+            RecruiterId = request.RecruiterId
+        };
+
+        var skills = request.Skills?.Select(s => (s.Name, s.Level)).ToList() ?? new List<(string, int)>();
+        var created = await _jobService.CreateWithSkillsAsync(job, skills);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] Entities.Job job)
     {
@@ -89,5 +122,12 @@ public class JobsController : ControllerBase
     {
         var matches = await _jobService.GetMatchesAsync(id);
         return Ok(matches);
+    }
+
+    [HttpGet("available/{candidateId}")]
+    public async Task<IActionResult> GetAvailableForCandidate(int candidateId)
+    {
+        var jobs = await _jobService.GetAvailableForCandidateAsync(candidateId);
+        return Ok(jobs);
     }
 }

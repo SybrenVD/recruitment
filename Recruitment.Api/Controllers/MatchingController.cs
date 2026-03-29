@@ -26,8 +26,15 @@ public class MatchingController : ControllerBase
     [HttpGet("candidates/{candidateId}/suggestions")]
     public async Task<IActionResult> GetCandidateSuggestions(int candidateId, [FromQuery] int limit = 10)
     {
-        var suggestions = await _matchingService.GetSuggestionsForCandidateAsync(candidateId, limit);
-        return Ok(suggestions);
+        try
+        {
+            var suggestions = await _matchingService.GetSuggestionsForCandidateAsync(candidateId, limit);
+            return Ok(suggestions);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
+        }
     }
 
     [HttpGet("jobs/{jobId}/suggestions")]
@@ -40,8 +47,15 @@ public class MatchingController : ControllerBase
     [HttpPost("swipe")]
     public async Task<IActionResult> Swipe([FromBody] SwipeRequest request)
     {
-        await _matchingService.ProcessSwipeAsync(request.CandidateId, request.JobId, request.IsLike);
-        return Ok();
+        var isMatch = await _matchingService.ProcessSwipeAsync(request.CandidateId, request.JobId, request.IsLike);
+        return Ok(new { isMatch });
+    }
+
+    [HttpPost("recruiter-swipe")]
+    public async Task<IActionResult> RecruiterSwipe([FromBody] SwipeRequest request)
+    {
+        var isMatch = await _matchingService.ProcessRecruiterSwipeAsync(request.CandidateId, request.JobId, request.IsLike);
+        return Ok(new { isMatch });
     }
 
     [HttpGet("mutual")]
@@ -49,6 +63,13 @@ public class MatchingController : ControllerBase
     {
         var matches = await _matchingService.GetMutualMatchesAsync(userId, isCandidate);
         return Ok(matches);
+    }
+
+    [HttpGet("recruiter/{recruiterId}/job/{jobId}/available")]
+    public async Task<IActionResult> GetAvailableForRecruiter(int recruiterId, int jobId)
+    {
+        var candidates = await _matchingService.GetAvailableForRecruiterAsync(recruiterId, jobId);
+        return Ok(candidates);
     }
 }
 

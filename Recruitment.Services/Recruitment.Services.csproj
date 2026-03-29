@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="PdfPig" Version="0.1.9" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Recruitment.Interfaces\Recruitment.Interfaces.csproj" />
     <ProjectReference Include="..\Recruitment.Data\Recruitment.Data.csproj" />
   </ItemGroup>

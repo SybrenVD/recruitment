@@ -9,6 +9,8 @@ namespace Recruitment.Entities
         public int JobId { get; set; }
         public int MatchScore { get; set; }
         public string? SkillGap { get; set; }
+        public bool? IsLikedByCandidate { get; set; }
+        public bool? IsLikedByRecruiter { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public Candidate Candidate { get; set; } = null!;

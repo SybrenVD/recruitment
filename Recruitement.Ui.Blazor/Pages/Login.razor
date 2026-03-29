@@ -2,29 +2,41 @@
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
-<h3>Login</h3>
+<div class="login-container">
+    <div class="login-card">
+        <h2>Welcome Back</h2>
+        
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="alert alert-danger">@Error</div>
+        }
 
-@if (!string.IsNullOrEmpty(Error))
-{
-    <div class="alert alert-danger">@Error</div>
-}
+        <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="mb-3">
+                <label>Email</label>
+                <InputText class="form-control" @bind-Value="loginModel.Email" />
+            </div>
+            <div class="mb-3">
+                <label>Password</label>
+                <InputText type="password" class="form-control" @bind-Value="loginModel.Password" />
+            </div>
+            <div class="mb-3">
+                <label>Login as:</label>
+                <InputSelect class="form-control" @bind-Value="loginModel.UserType">
+                    <option value="candidate">Kandidaat (Werknemer)</option>
+                    <option value="recruiter">Recruiter (Werkgever)</option>
+                </InputSelect>
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Login</button>
+        </EditForm>
 
-<EditForm Model="loginModel" OnValidSubmit="HandleLogin">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div class="mb-3">
-        <label>Email</label>
-        <InputText class="form-control" @bind-Value="loginModel.Email" />
+        <div class="register-link">
+            Don't have an account? <a href="/register">Register</a>
+        </div>
     </div>
-    <div class="mb-3">
-        <label>Type</label>
-        <InputSelect class="form-control" @bind-Value="loginModel.UserType">
-            <option value="candidate">Kandidaat</option>
-            <option value="recruiter">Recruiter</option>
-        </InputSelect>
-    </div>
-    <button class="btn btn-primary" type="submit">Login</button>
-</EditForm>
+</div>
 
 @code {
     private LoginModel loginModel = new();
@@ -32,20 +44,61 @@
 
     private async Task HandleLogin()
     {
-        var success = await AuthService.LoginAsync(loginModel.Email, loginModel.UserType);
+        Error = null;
+        var success = await AuthService.LoginAsync(loginModel.Email, loginModel.Password, loginModel.UserType);
         if (success)
         {
-            Navigation.NavigateTo("/");
+            var redirectUrl = loginModel.UserType == "recruiter" ? "/post-job" : "/profile";
+            Navigation.NavigateTo(redirectUrl, forceLoad: true);
         }
         else
         {
-            Error = "Login mislukt. Probeer opnieuw.";
+            Error = "Login failed. Check your email and password.";
         }
     }
 
     public class LoginModel
     {
         public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
         public string UserType { get; set; } = "candidate";
     }
 }
+
+<style>
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+    }
+
+    .login-card {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .login-card h2 {
+        text-align: center;
+        margin-bottom: 30px;
+        color: #333;
+    }
+
+    .register-link {
+        text-align: center;
+        margin-top: 20px;
+        color: #666;
+    }
+
+    .register-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+    }
+</style>

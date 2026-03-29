@@ -12,20 +12,11 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5281/") });
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<RecruitmentApiService>();
 builder.Services.AddScoped<JwtAuthorizationMessageHandler>();
 builder.Services.AddScoped<AuthenticationStateProvider, JwtAuthenticationStateProvider>();
 builder.Services.AddAuthorizationCore();
-builder.Services.AddScoped(sp =>
-{
-    var js = sp.GetRequiredService<Microsoft.JSInterop.IJSRuntime>();
-    var handler = sp.GetRequiredService<JwtAuthorizationMessageHandler>();
-    return new HttpClient(handler) { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) };
-});
 
 await builder.Build().RunAsync();
-// Register typed API client for Candidates
-builder.Services.AddHttpClient<ICandidateApiClient, CandidateApiClient>(client =>
-{
-    client.BaseAddress = new Uri("https://localhost:5001/api/candidates");
-});

@@ -1,0 +1,215 @@
+@page "/matches"
+@inject RecruitmentApiService Api
+@inject AuthService Auth
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using M = Recruitement.Ui.Blazor.Models
+
+<PageTitle>My Matches - Recruitment</PageTitle>
+
+<div class="matches-container">
+    <div class="header">
+        <h1>My Matches</h1>
+        <p>@(isRecruiter ? "Candidates who matched with your jobs" : "Jobs that match your profile")</p>
+        <button @onclick="LoadMatches" class="refresh-btn">🔄 Refresh</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading matches...</div>
+    }
+    else if (!matches.Any())
+    {
+        <div class="no-matches">
+            <div class="empty-icon">♥</div>
+            <h2>No matches yet</h2>
+            <p>@(isRecruiter ? "Start swiping candidates to find matches!" : "Start swiping to find your perfect job!")</p>
+            <a href="@(isRecruiter ? "/swipe-candidates" : "/swipe")" class="btn-primary">
+                @(isRecruiter ? "Find Candidates" : "Find Jobs")
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="matches-list">
+            @foreach (var match in matches)
+            {
+                <div class="match-card">
+                    @if (isRecruiter)
+                    {
+                        <div class="match-info">
+                            <div>
+                                <h3>@match.Candidate?.FirstName @match.Candidate?.LastName</h3>
+                                <p class="location">📍 @match.Candidate?.Location</p>
+                                <p class="email">✉️ @match.Candidate?.Email</p>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="match-info">
+                            <div>
+                                <h3>@match.Job?.Title</h3>
+                                <p class="company">🏢 @match.Job?.Recruiter?.Company</p>
+                                <p class="location">📍 @match.Job?.Location</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<M.JobMatch> matches = new();
+    private bool loading = true;
+    private bool isRecruiter = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var role = await Auth.GetUserRoleAsync();
+        isRecruiter = role == "Recruiter";
+        await LoadMatches();
+    }
+
+    private async Task LoadMatches()
+    {
+        loading = true;
+        var userId = await Auth.GetUserIdAsync();
+        if (userId.HasValue)
+        {
+            if (isRecruiter)
+            {
+                matches = await Api.GetRecruiterMutualMatchesAsync(userId.Value);
+            }
+            else
+            {
+                matches = await Api.GetMutualMatchesAsync(userId.Value);
+            }
+        }
+        loading = false;
+    }
+}
+
+<style>
+    .matches-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .header h1 {
+        color: #333;
+        margin: 0;
+    }
+
+    .header p {
+        color: #666;
+        margin: 5px 0 0;
+    }
+
+    .loading {
+        text-align: center;
+        color: #666;
+        padding: 40px;
+    }
+
+    .refresh-btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 15px;
+        cursor: pointer;
+        margin-top: 10px;
+    }
+
+    .refresh-btn:hover {
+        background: #5a6fd6;
+    }
+
+    .no-matches {
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        color: #ddd;
+        margin-bottom: 20px;
+    }
+
+    .no-matches h2 {
+        color: #333;
+        margin: 0 0 10px;
+    }
+
+    .no-matches p {
+        color: #666;
+    }
+
+    .btn-primary {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 12px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 25px;
+    }
+
+    .matches-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .match-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .match-info {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .match-info h3 {
+        margin: 0;
+        color: #333;
+    }
+
+    .location, .email {
+        color: #666;
+        margin: 5px 0;
+        font-size: 0.9rem;
+    }
+
+    .score-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .skill-gap {
+        color: #888;
+        font-size: 0.9rem;
+        margin: 10px 0;
+    }
+
+    .match-actions {
+        margin-top: 15px;
+    }
+</style>

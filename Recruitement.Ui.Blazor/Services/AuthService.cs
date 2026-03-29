@@ -18,9 +18,9 @@ public class AuthService
         _js = js;
     }
 
-    public async Task<bool> LoginAsync(string email, string userType)
+    public async Task<bool> LoginAsync(string email, string password, string userType)
     {
-        var response = await _http.PostAsJsonAsync("api/auth/login", new { email, userType });
+        var response = await _http.PostAsJsonAsync("api/auth/login", new { email, password, userType });
         if (!response.IsSuccessStatusCode)
             return false;
         var json = await response.Content.ReadAsStringAsync();
@@ -53,5 +53,26 @@ public class AuthService
         var jwt = handler.ReadJwtToken(token);
         var identity = new ClaimsIdentity(jwt.Claims, "jwt");
         return new ClaimsPrincipal(identity);
+    }
+
+    public async Task<string?> GetUserEmailAsync()
+    {
+        var user = await GetUserAsync();
+        return user.FindFirst(ClaimTypes.Email)?.Value;
+    }
+
+    public async Task<string?> GetUserRoleAsync()
+    {
+        var user = await GetUserAsync();
+        return user.FindFirst(ClaimTypes.Role)?.Value;
+    }
+
+    public async Task<int?> GetUserIdAsync()
+    {
+        var user = await GetUserAsync();
+        var idClaim = user.FindFirst("UserId")?.Value;
+        if (int.TryParse(idClaim, out int userId))
+            return userId;
+        return null;
     }
 }

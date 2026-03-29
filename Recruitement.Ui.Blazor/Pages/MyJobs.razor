@@ -1,0 +1,151 @@
+@page "/my-jobs"
+@attribute [Authorize(Roles = "Recruiter")]
+@using Microsoft.AspNetCore.Authorization
+@inject RecruitmentApiService Api
+@inject NavigationManager Navigation
+@using M = Recruitement.Ui.Blazor.Models
+
+<PageTitle>My Jobs - Recruitment</PageTitle>
+
+<div class="container">
+    <div class="header">
+        <h1>My Posted Jobs</h1>
+        <a href="/post-job" class="btn btn-primary">+ Post New Job</a>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading jobs...</div>
+    }
+    else if (jobs.Any())
+    {
+        <div class="jobs-list">
+            @foreach (var job in jobs)
+            {
+                <div class="job-card">
+                    <div class="job-info">
+                        <h3>@job.Title</h3>
+                        <p class="location">📍 @job.Location</p>
+                        @if (!string.IsNullOrEmpty(job.ExperienceLevel))
+                        {
+                            <p class="experience">@job.ExperienceLevel</p>
+                        }
+                    </div>
+                    <div class="job-actions">
+                        <a href="/swipe-candidates" class="btn btn-outline-primary btn-sm">Find Candidates</a>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <h3>No jobs posted yet</h3>
+            <p>Start by posting your first job to find candidates.</p>
+            <a href="/post-job" class="btn btn-primary">Post a Job</a>
+        </div>
+    }
+</div>
+
+@code {
+    private List<M.Job> jobs = new();
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        jobs = await Api.GetJobsAsync();
+        loading = false;
+    }
+}
+
+<style>
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+
+    .header h1 {
+        margin: 0;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+
+    .jobs-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .job-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .job-info h3 {
+        margin: 0 0 5px;
+        color: #333;
+    }
+
+    .location, .experience {
+        margin: 0;
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .skills {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .skill-badge {
+        background: #f0f0f0;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+    }
+
+    .skill-badge.more {
+        background: #667eea;
+        color: white;
+    }
+
+    .job-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #666;
+    }
+
+    .empty-state h3 {
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .empty-state p {
+        margin-bottom: 20px;
+    }
+</style>
