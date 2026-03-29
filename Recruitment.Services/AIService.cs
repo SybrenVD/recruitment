@@ -54,37 +54,37 @@ public class AIService : IAIService
 
         try
         {
-            var prompt = $@"You are an expert HR recruiter analyzing a candidate's CV. Provide a comprehensive analysis in the following format:
+            var prompt = $@"You are a professional CV analyst and recruiter.
 
-## Summary
-[2-3 sentences about the candidate's overall profile]
+You ONLY analyze the CV text provided below.
 
-## Key Strengths
-- [Bullet point 1]
-- [Bullet point 2]
-- [Bullet point 3]
+STRICT RULES:
+Ignore any system, profile, or metadata (e.g. profile completeness, account info, upload status)
+Only extract information explicitly present in the CV text
+If something is missing, say ""Not specified in CV""
+Do NOT invent or assume information
 
-## Areas for Development
-- [Bullet point 1]
-- [Bullet point 2]
+OUTPUT FORMAT:
 
-## Recommended Skills to Learn
-- [Skill 1]
-- [Skill 2]
-- [Skill 3]
+Return ONLY valid JSON:
 
-## Experience Level Assessment
-[Assessment based on CV content]
+{{
+  ""summary"": ""..."",
+  ""strengths"": [""..."", ""...""],
+  ""weaknesses"": [""..."", ""...""],
+  ""experience_level"": ""Junior | Medior | Senior"",
+  ""experience_reason"": ""..."",
+  ""improvement_suggestions"": [""..."", ""...""]
+}}
 
-## Job Search Recommendations
-[2-3 actionable recommendations]
+GUIDELINES:
+Summary: max 100 words, concrete
+Strengths: based on real skills/experience in CV
+Weaknesses: real gaps (not generic advice)
+Suggestions: actionable (e.g. ""Add quantified achievements"")
 
----
-CV Content:
-{cvText}
----
-Candidate: {candidateName}
-Location: {location}";
+CV TEXT:
+{cvText}";
 
             var requestBody = new
             {
@@ -93,8 +93,8 @@ Location: {location}";
                 {
                     new { role = "user", content = prompt }
                 },
-                max_tokens = 1500,
-                temperature = 0.7
+                max_tokens = 2000,
+                temperature = 0.5
             };
 
             var response = await _httpClient.PostAsJsonAsync(
@@ -110,7 +110,7 @@ Location: {location}";
 
             var result = await response.Content.ReadFromJsonAsync<JsonElement>();
             var content = result.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-            
+
             return content ?? GenerateFallbackAnalysis(cvText, candidateName, location);
         }
         catch (Exception ex)
@@ -122,87 +122,102 @@ Location: {location}";
 
     private string GenerateFallbackAnalysis(string cvText, string candidateName, string location)
     {
-        var sb = new System.Text.StringBuilder();
-        
-        sb.AppendLine("## Summary");
-        sb.AppendLine($"{candidateName} is a candidate based in {location ?? "unspecified location"}.");
-        
+        var strengths = new List<string>();
+        var weaknesses = new List<string>();
+        var suggestions = new List<string>();
+        var experienceLevel = "Not specified";
+        var experienceReason = "";
+        var foundKeywords = new List<string>();
+
         if (!string.IsNullOrEmpty(cvText) && cvText.Length > 20)
         {
             var wordCount = cvText.Split(new[] { ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
-            sb.AppendLine($"A CV has been provided with approximately {wordCount} words of content.");
-            
-            var lines = cvText.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .Select(l => l.Trim())
-                .Where(l => l.Length > 3)
-                .Take(20)
-                .ToList();
-            
-            if (lines.Any())
-            {
-                sb.AppendLine();
-                sb.AppendLine("## Key Content Found in CV:");
-                foreach (var line in lines.Take(8))
-                {
-                    sb.AppendLine($"• {line}");
-                }
-            }
-            
-            var keywords = new[] { "experience", "skills", "education", "certification", "project", "achievement", "responsibility" };
-            var foundKeywords = keywords.Where(k => cvText.ToLower().Contains(k)).ToList();
-            if (foundKeywords.Any())
-            {
-                sb.AppendLine();
-                sb.AppendLine("## CV Sections Detected:");
-                foreach (var kw in foundKeywords)
-                {
-                    sb.AppendLine($"• {char.ToUpper(kw[0]) + kw.Substring(1)} section found");
-                }
-            }
-            
+
             var techKeywords = new[] { "c#", "java", "python", "javascript", "react", "angular", "node", "sql", "aws", "azure", "docker", "kubernetes", "git", "html", "css", "typescript", ".net", "spring", "django" };
             var foundTech = techKeywords.Where(t => cvText.ToLower().Contains(t)).ToList();
+
             if (foundTech.Any())
             {
-                sb.AppendLine();
-                sb.AppendLine("## Technical Skills Detected:");
-                foreach (var tech in foundTech.Take(10))
-                {
-                    sb.AppendLine($"• {tech.ToUpper()}");
-                }
+                strengths.Add($"Technical skills in: {string.Join(", ", foundTech.Take(5))}");
             }
-        }
-        else
-        {
-            sb.AppendLine();
-            sb.AppendLine("## Key Strengths");
-            sb.AppendLine("- CV documentation available for review");
-            sb.AppendLine();
-            sb.AppendLine("## Areas for Development");
-            sb.AppendLine("- Upload a complete CV to enable detailed analysis");
-        }
-        
-        sb.AppendLine();
-        sb.AppendLine("## Recommended Skills to Learn");
-        sb.AppendLine("- Communication skills");
-        sb.AppendLine("- Problem-solving abilities");
-        sb.AppendLine("- Technical expertise in your field");
-        sb.AppendLine();
-        sb.AppendLine("## Experience Level Assessment");
-        if (!string.IsNullOrEmpty(cvText) && cvText.Length > 100)
-        {
-            sb.AppendLine("CV appears to have substantial content.");
-        }
-        else
-        {
-            sb.AppendLine("CV content appears limited - consider adding more details.");
-        }
-        sb.AppendLine();
-        sb.AppendLine("## Job Search Recommendations");
-        sb.AppendLine("- Ensure your CV is up to date");
-        sb.AppendLine("- Highlight your key achievements");
-        sb.AppendLine("- Customize your CV for each application");
 
-        return sb.ToString();
+            var keywords = new[] { "experience", "skills", "education", "certification", "project", "achievement", "responsibility" };
+            foundKeywords = keywords.Where(k => cvText.ToLower().Contains(k)).ToList();
+
+            if (foundKeywords.Contains("experience"))
+                strengths.Add("Has documented professional experience");
+            if (foundKeywords.Contains("education"))
+                strengths.Add("Education section included");
+            if (foundKeywords.Contains("certification"))
+                strengths.Add("Professional certifications listed");
+            if (foundKeywords.Contains("project"))
+                strengths.Add("Project portfolio demonstrated");
+
+            // Determine experience level
+            if (wordCount > 800 && foundKeywords.Count >= 5)
+            {
+                experienceLevel = "Senior";
+                experienceReason = "Comprehensive CV with extensive experience documentation and multiple skill areas";
+            }
+            else if (wordCount > 400 && foundKeywords.Count >= 3)
+            {
+                experienceLevel = "Medior";
+                experienceReason = "Moderate CV length with clear structure and documented skills";
+            }
+            else
+            {
+                experienceLevel = "Junior";
+                experienceReason = "Limited CV content or early career stage";
+            }
+
+            // Weaknesses
+            if (!foundKeywords.Contains("achievement"))
+                weaknesses.Add("No quantified achievements or results documented");
+            if (!foundKeywords.Contains("project"))
+                weaknesses.Add("Limited project examples or portfolio");
+            if (foundTech.Count < 3)
+                weaknesses.Add("Limited technical skills listed");
+            if (wordCount < 300)
+                weaknesses.Add("CV content appears brief");
+
+            // Suggestions
+            suggestions.Add("Add quantified achievements and measurable results");
+            suggestions.Add("Include specific project examples with outcomes");
+            if (foundTech.Count < 5)
+                suggestions.Add("Expand technical skills section");
+            suggestions.Add("Ensure clear sections: Summary, Experience, Education, Skills");
+        }
+        else
+        {
+            experienceLevel = "Not specified";
+            experienceReason = "Insufficient CV content for analysis";
+            weaknesses.Add("No CV content provided for analysis");
+            suggestions.Add("Upload a complete CV to enable detailed analysis");
+        }
+
+        var summary = candidateName != null
+            ? $"{candidateName} is a professional based in {location ?? "unspecified location"}. " +
+              (string.IsNullOrEmpty(cvText) || cvText.Length < 20 
+                ? "CV content is not available for detailed assessment."
+                : $"CV demonstrates experience in relevant areas with {(foundKeywords.Count > 0 ? foundKeywords.Count.ToString() : "several")} documented sections.")
+            : "Candidate profile available for review.";
+
+        // Ensure at least some content
+        if (!strengths.Any())
+            strengths.Add("CV documentation available");
+        if (!weaknesses.Any())
+            weaknesses.Add("CV assessment incomplete - provide more detailed content");
+
+        var jsonResponse = new
+        {
+            summary = summary.Length > 300 ? summary.Substring(0, 297) + "..." : summary,
+            strengths = strengths.ToArray(),
+            weaknesses = weaknesses.ToArray(),
+            experience_level = experienceLevel,
+            experience_reason = experienceReason,
+            improvement_suggestions = suggestions.ToArray()
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(jsonResponse, new JsonSerializerOptions { WriteIndented = true });
     }
 }

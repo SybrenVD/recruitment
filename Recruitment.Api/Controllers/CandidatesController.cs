@@ -101,17 +101,17 @@ public class CandidatesController : ControllerBase
         return Ok(analysis);
     }
 
-    [HttpGet("{id}/analyze")]
-    public async Task<IActionResult> AnalyzeCV(int id)
-    {
-        try
-        {
-            var analysis = await _cvAnalysisService.AnalyzeCVAsync(id);
-            return Ok(analysis);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return NotFound(ex.Message);
-        }
-    }
-}
+             [HttpGet("{id}/analyze")]
+             public async Task<IActionResult> AnalyzeCV(int id)
+             {
+                 try
+                 {
+                     var analysis = await _cvAnalysisService.AnalyzeCVAsync(id);
+                     return Ok(analysis);
+                 }
+                 catch (InvalidOperationException ex)
+                 {
+                     return NotFound(ex.Message);
+                 }
+             }
+         }
